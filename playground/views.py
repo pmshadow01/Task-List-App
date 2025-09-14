@@ -1,22 +1,25 @@
-import datetime
+"""
+Disclaimer:
+    This app does not support password reset functionality as it is for demo purposes only.
+    Users register and sign in with a username instead of an email.
+    Thank you for your understanding.
+"""
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.contrib.auth import get_user_model
-from django.contrib.auth.mixins import LoginRequiredMixin
-from django.views import View
-from django.contrib.auth.models import User
 from django.contrib import messages
-from django.contrib.auth.forms import UserCreationForm
 from .forms import CreateTaskForm
 from .forms import RegisterForm
 from .models import Task
+import datetime
 
 # Create your views here.
 
 User = get_user_model()
 
+# Handles user registration from the RegisterForm class in forms.py. If the POST request and form is valid, a new user is created and logged in. Otherwise, the registration form is displayed.
 def register_view(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
@@ -28,6 +31,7 @@ def register_view(request):
         form = RegisterForm()
     return render(request, "accounts/register.html", {"form": form})
 
+# Logs in a user with username/password. Redirects on success, shows error on failure.
 def login_view(request):
     if request.method == "POST":
         username = request.POST.get("username")
@@ -40,18 +44,20 @@ def login_view(request):
         messages.error(request, "Invalid credentials")
     return render(request, 'accounts/login.html')
 
-
+# Logs out the current user and redirects them to the login page.
 def logout_view(request):
     if request.method == "POST":
         logout(request)
         messages.success(request, "You have been logged out.")
         return redirect("login")
     return render(request, "accounts/logout.html")
-    
+
+# Home page view requiring login with decorator. Nothing too fancy... yet. From this point on, all functions will have the @login_required decorator.
 @login_required
 def home_view(request):
     return render(request, 'playground_app/home.html')
 
+# Task list view. You can add/remove/update tasks here with the other functions below this one. Tasks are sorted by due date by default.
 @login_required
 def task_list_view(request):
     tasks = Task.objects.select_related("assigned_user").order_by("due_date")
@@ -61,9 +67,9 @@ def task_list_view(request):
         "tasks": tasks,
         "users": users,                              # <-- for the Assignee dropdown
         "task_choices": Task.task_choices,           # <-- for the Status dropdown
-        # or: "task_choices": Task._meta.get_field("task_status").choices
     })
 
+# Create tasks here using the CreateTaskForm class in forms.py. Once a task is created, there will be a return to task list button to take you back.
 @login_required
 def create_task_view(request):
     if request.method == "POST":
@@ -75,6 +81,11 @@ def create_task_view(request):
         form = CreateTaskForm()
     return render(request, "tasks/task_form.html", {"form": form})
 
+# Task single and bulk delete views.
+# get_object_or_404 is handy here since it avoids writing a full try/except block
+# when fetching a single task. The @require_POST decorator ensures that these
+# views can only be accessed via POST requests, which prevents accidental deletions
+# from GET requests in a browser.
 @login_required
 @require_POST
 def task_delete_view(request, pk):
@@ -90,8 +101,7 @@ def tasks_bulk_delete_view(request):
         Task.objects.filter(id__in=ids).delete()
     return redirect("task_list")
 
-User = get_user_model()
-
+# The task update view. Read in-line comments.
 @login_required
 @require_POST
 def task_update_view(request, pk):
@@ -99,8 +109,10 @@ def task_update_view(request, pk):
     if request.POST.get("action") != "save_row":
         return redirect("task_list")
 
+    # Get the task or 404 if it doesn't exist.
     task = get_object_or_404(Task, pk=pk)
 
+    # Inputs come from per-row fields.
     assignee_id = request.POST.get(f"assigned_user_{pk}")
     new_status  = request.POST.get(f"task_status_{pk}")
     due_str     = request.POST.get(f"due_date_{pk}", "").strip()
@@ -113,13 +125,16 @@ def task_update_view(request, pk):
             return redirect("task_list")
         task.task_status = new_status
 
+    # If an assignee id was provided, ensure the user exists before assigning.
+    # Note: leaving assignee_id blank keeps the current assignee
     if assignee_id:
         try:
             task.assigned_user = User.objects.get(pk=assignee_id)
         except User.DoesNotExist:
             messages.error(request, "Selected assignee does not exist.")
             return redirect("task_list")
-    
+        
+    # Handle due date. Empty string clears it, otherwise display (YYYY-MM-DD).
     if due_str == "":
         task.due_date = None
     else:
@@ -128,39 +143,8 @@ def task_update_view(request, pk):
         except ValueError:
             messages.error(request, "Invalid date format.")
             return redirect("task_list")
-
+        
+    # Persist changes and notify the user
     task.save()
     messages.success(request, "Task updated.")
     return redirect("task_list")
-
-# class ProtectedView(LoginRequiredMixin, View):
-#     login_url = '/login/'
-#     redirect_field_name = 'redirect_to'
-
-#     def get(self, request):
-#         return render(request, 'registration/protected.html')
-
-# def contact_view(request):
-#     if request.method == "POST":
-#         form = TaskForm(request.POST)
-#         if form.is_valid():
-#             form.send_email()
-#             return redirect('contact-success')
-#     else:
-#         form = TaskForm()
-#     context = {'form':form}
-#     return render(request, 'contact.html', context)
-
-# def contact_success_view(request):
-#     return render(request, 'contact_success.html')
-
-# def register_view(request):
-#     if request.method == "POST":
-#         form = CustomUserCreationForm(request.POST)
-#         if form.is_valid():
-#             user = form.save()
-#             login(request, user)
-#             return redirect("home")
-#     else:
-#         form = CustomUserCreationForm()
-#     return render(request, "accounts/register.html", {"form": form})

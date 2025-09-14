@@ -12,6 +12,4 @@ urlpatterns = [
     path("tasks/<int:pk>/delete/", views.task_delete_view, name="task_delete"),
     path("tasks/bulk-delete/", views.tasks_bulk_delete_view, name="tasks_bulk_delete"),
     path("tasks/<int:pk>/update/", views.task_update_view, name="task_update"),
-    # path("contact/", views.contact_view, name='contact'),
-    # path("contact/success", views.contact_success_view, name='contact-success'),
 ]
